@@ -105,7 +105,7 @@ def generate(model, prompt, steps=128, gen_length=128, block_length=128, tempera
             if num_block % 1 == 0 and ess < 0.5 * num_particles:
                 print(f"Normal Resampling at block {num_block}, with ess: {ess:.2f}")
                 k_idx = torch.multinomial(weights, num_samples=num_particles, replacement=True).squeeze(-1)
-                x = x[k_idx]; logp = logp[k_idx]; log_w.zero_() # log_w = log_w[k_idx] #log_w.zero_()
+                x = x[k_idx]; logp = logp[k_idx]; log_w = log_w[k_idx] #log_w.zero_()
 
         tps = block_length // i # tokens_per_step
         print(f"num_block: {num_block+1}, block length: {block_length}, diffusion steps: {i}, tokens/step: {tps}, num_particles: {num_particles}")
@@ -165,7 +165,7 @@ def generate_with_prefix_cache_smc(model, prompt, steps=128, gen_length=128, blo
         x[transfer_index] = x0[transfer_index]
         logp[transfer_index] = x0_logp[transfer_index]
         # weight accumulation
-        # log_w = log_w + (x0_logp * transfer_index.float()).sum(dim=1) # weight on transfer tokens
+        log_w = log_w + (x0_logp * transfer_index.float()).sum(dim=1) # weight on transfer tokens
 
         new_past_key_values = []
         for i in range(len(past_key_values)):
@@ -204,16 +204,16 @@ def generate_with_prefix_cache_smc(model, prompt, steps=128, gen_length=128, blo
 
         # SMC Resampling
         if num_particles > 1:
-            # weights = torch.exp(log_w - log_w.max())
-            # weights = weights / weights.sum()
-            weights = torch.softmax(log_w, dim=0)
+            weights = torch.exp(log_w - log_w.max())
+            weights = weights / weights.sum()
+            # weights = torch.softmax(log_w, dim=0)
             # resampling
             ess = 1.0 / (weights.pow(2).sum())
             if num_block % 1 == 0 and ess < 0.5 * num_particles:
                 print(f"Resampling at block {num_block}, with ess: {ess:.2f}")
                 k_idx = torch.multinomial(weights, num_samples=num_particles, replacement=True).squeeze(-1)
-                x = x[k_idx]; logp = logp[k_idx]; # log_w = log_w[k_idx]
-                log_w.zero_()
+                x = x[k_idx]; logp = logp[k_idx]; log_w = log_w[k_idx]
+                # log_w.zero_()
 
         tps = block_length // i # tokens_per_step
         print(f"num_block: {num_block+1}, block length: {block_length}, diffusion steps: {i}, tokens/step: {tps}, num_particles: {num_particles}")
@@ -221,13 +221,9 @@ def generate_with_prefix_cache_smc(model, prompt, steps=128, gen_length=128, blo
     idx = torch.argmax(logp.sum(dim=1))
     return x[idx:idx+1], nfe
 
-def categorical_sampling(logits):
-    return torch.distributions.Categorical(logits=logits).sample()
-
 def get_transfer_index(logits, temperature, remasking, mask_index, x, num_transfer_tokens, threshold=None):
     logits_with_noise = add_gumbel_noise(logits, temperature=temperature)
-    x0 = categorical_sampling(logits_with_noise)
-    # x0 = torch.argmax(logits_with_noise, dim=-1) # b, l
+    x0 = torch.argmax(logits_with_noise, dim=-1) # b, l
     if remasking == 'low_confidence':
         log_pt = F.log_softmax(logits.to(torch.float64), dim=-1)
         x0_logp = torch.squeeze(
@@ -255,8 +251,7 @@ def get_transfer_index(logits, temperature, remasking, mask_index, x, num_transf
 
 def get_transfer_index_dynamic(logits, temperature, remasking, mask_index, x, num_transfer_tokens, factor=1):
     logits_with_noise = add_gumbel_noise(logits, temperature=temperature)
-    x0 = categorical_sampling(logits_with_noise)
-    # x0 = torch.argmax(logits_with_noise, dim=-1) # b, l
+    x0 = torch.argmax(logits_with_noise, dim=-1) # b, l
     if remasking == 'low_confidence':
         log_p = F.log_softmax(logits.to(torch.float64), dim=-1)
         x0_logp = torch.squeeze(
