@@ -82,7 +82,7 @@ If you find this work useful, please cite our paper:
 ```
 @article{luo2026self,
   title={Self-Rewarding Sequential Monte Carlo for Masked Diffusion Language Models},
-  author={Luo, Ziwei and Jin, Ziqi and Lei, Wang and Bing, Lidong and Sch{\"o}n, Thomas B},
+  author={Luo, Ziwei and Jin, Ziqi and Wang, Lei and Bing, Lidong and Sch{\"o}n, Thomas B},
   journal={arXiv preprint arXiv:2602.01849},
   year={2026}
 }
